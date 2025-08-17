@@ -9,8 +9,7 @@ import io
 st.set_page_config(page_title="Data Cleaning App", page_icon="🧹", layout="centered")
 
 st.title("🧹 Data Cleaning Service")
-st.write("Upload your CSV/Excel file and get a cleaned version with duplicates removed, "
-         "missing values handled, and column names standardized.")
+st.write("Upload your CSV/Excel file and clean it interactively by removing columns and handling missing values.")
 
 # -------------------------------
 # File Upload
@@ -19,6 +18,7 @@ uploaded_file = st.file_uploader("Upload your file", type=["csv", "xlsx"])
 
 if uploaded_file is not None:
     try:
+        # Read file
         if uploaded_file.name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
         else:
@@ -27,23 +27,61 @@ if uploaded_file is not None:
         st.subheader("📊 Original Data Preview")
         st.dataframe(df.head())
 
-        # -------------------------------
-        # Cleaning Process
-        # -------------------------------
         cleaned_df = df.copy()
 
-        # 1. Remove Duplicates
-        cleaned_df = cleaned_df.drop_duplicates()
+        # -------------------------------
+        # 1. Ask user to remove unwanted columns
+        # -------------------------------
+        st.subheader("🗑️ Remove Unwanted Columns")
+        cols_to_remove = st.multiselect(
+            "Select columns you want to remove:",
+            options=cleaned_df.columns.tolist()
+        )
 
-        # 2. Fill Missing Values
-        for col in cleaned_df.columns:
-            if cleaned_df[col].dtype in [np.float64, np.int64]:
-                cleaned_df[col] = cleaned_df[col].fillna(cleaned_df[col].mean())
-            else:
-                cleaned_df[col] = cleaned_df[col].fillna("Unknown")
+        if cols_to_remove:
+            cleaned_df.drop(columns=cols_to_remove, inplace=True)
+            st.success(f"Removed columns: {', '.join(cols_to_remove)}")
 
-        # 3. Standardize Column Names
-        cleaned_df.columns = [c.strip().lower().replace(" ", "_") for c in cleaned_df.columns]
+        # -------------------------------
+        # 2. Handle Missing Values
+        # -------------------------------
+        st.subheader("🩹 Handle Missing Values")
+
+        fill_option = st.selectbox(
+            "Choose how to fill missing values:",
+            [
+                "Do nothing",
+                "Fill with column mean (numeric only)",
+                "Fill with column median (numeric only)",
+                "Fill with mode",
+                "Fill with 0 (numeric only)",
+                "Fill with 'Unknown' (for text)",
+                "Drop rows with missing values"
+            ]
+        )
+
+        if fill_option != "Do nothing":
+            for col in cleaned_df.columns:
+                if cleaned_df[col].isnull().sum() > 0:
+                    if fill_option == "Fill with column mean (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
+                        cleaned_df[col].fillna(cleaned_df[col].mean(), inplace=True)
+
+                    elif fill_option == "Fill with column median (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
+                        cleaned_df[col].fillna(cleaned_df[col].median(), inplace=True)
+
+                    elif fill_option == "Fill with mode":
+                        cleaned_df[col].fillna(cleaned_df[col].mode()[0], inplace=True)
+
+                    elif fill_option == "Fill with 0 (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
+                        cleaned_df[col].fillna(0, inplace=True)
+
+                    elif fill_option == "Fill with 'Unknown' (for text)" and cleaned_df[col].dtype == object:
+                        cleaned_df[col].fillna("Unknown", inplace=True)
+
+                    elif fill_option == "Drop rows with missing values":
+                        cleaned_df.dropna(inplace=True)
+
+            st.success(f"Missing values handled using: {fill_option}")
 
         # -------------------------------
         # Show Cleaned Data
