@@ -56,7 +56,6 @@ if uploaded_file:
     st.subheader("🔎 Unique values per column")
     for col in df.columns:
         uniques = df[col].unique()
-        # Fix display for datetime
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             uniques = df[col].dt.strftime("%Y-%m-%d").unique()
         else:
@@ -95,10 +94,33 @@ if uploaded_file:
     st.header("✅ Step 6: Cleaned Dataset")
     st.write(cleaned_df.head())
 
-    # Download option
     st.download_button(
         label="📥 Download Cleaned File (CSV)",
         data=cleaned_df.to_csv(index=False).encode("utf-8"),
         file_name="cleaned_dataset.csv",
         mime="text/csv",
     )
+
+    # -------------------------------
+    # STEP 7: Select Target & Features
+    # -------------------------------
+    st.header("🎯 Step 7: Select Target & Dependent Columns")
+
+    target_col = st.selectbox("Select Target Column (Output Variable)", cleaned_df.columns)
+    feature_cols = st.multiselect("Select Dependent Columns (Input Features)", 
+                                  [c for c in cleaned_df.columns if c != target_col])
+
+    if target_col and feature_cols:
+        st.success(f"✅ Target Column: {target_col}")
+        st.success(f"✅ Feature Columns: {feature_cols}")
+
+        st.write("📌 Final Dataset (Features + Target)")
+        final_df = cleaned_df[feature_cols + [target_col]]
+        st.write(final_df.head())
+
+        st.download_button(
+            label="📥 Download Final ML-Ready Dataset (CSV)",
+            data=final_df.to_csv(index=False).encode("utf-8"),
+            file_name="ml_ready_dataset.csv",
+            mime="text/csv",
+        )
