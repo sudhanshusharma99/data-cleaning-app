@@ -1,134 +1,104 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import io
 
-st.set_page_config(page_title="Data Cleaning App", page_icon="🧹", layout="wide")
-
-st.title("🧹 Interactive Data Cleaning App")
+st.title("🧹 Data Cleaning Web App")
 
 # -------------------------------
-# Step 1: Upload File
+# STEP 1: Upload File
 # -------------------------------
-uploaded_file = st.file_uploader("📂 Upload your CSV/Excel file", type=["csv", "xlsx"])
+st.header("📂 Step 1: Upload Your File")
+uploaded_file = st.file_uploader("Upload CSV or Excel file", type=["csv", "xlsx"])
 
-if uploaded_file is not None:
-    # Read file
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
+if uploaded_file:
+    # -------------------------------
+    # STEP 2: Show Raw File
+    # -------------------------------
+    st.header("👀 Step 2: Raw Dataset")
+    try:
+        if uploaded_file.name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+        st.stop()
 
-    # Work on a copy
+    st.write(df.head())
+
+    # -------------------------------
+    # STEP 3: Show Info & Description
+    # -------------------------------
+    st.header("📊 Step 3: File Information")
+    buffer = []
+    df.info(buf=buffer)
+    info_str = "\n".join(buffer)
+    st.text("ℹ️ Dataset Info:")
+    st.text(info_str)
+
+    st.write("🧾 Summary Statistics:")
+    st.write(df.describe(include="all"))
+
+    # -------------------------------
+    # STEP 4: Remove Columns
+    # -------------------------------
+    st.header("✂️ Step 4: Remove Unwanted Columns")
+    cols_to_remove = st.multiselect("Select columns to remove", df.columns)
+    if cols_to_remove:
+        df = df.drop(columns=cols_to_remove)
+        st.success(f"Removed columns: {cols_to_remove}")
+    st.write(df.head())
+
+    # -------------------------------
+    # STEP 5: Handle Missing/Inappropriate Values
+    # -------------------------------
+    st.header("🩹 Step 5: Handle Missing/Inappropriate Values")
+
+    st.subheader("🔎 Unique values per column")
+    for col in df.columns:
+        uniques = df[col].unique()
+        # Fix display for datetime
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            uniques = df[col].dt.strftime("%Y-%m-%d").unique()
+        else:
+            uniques = uniques.astype(str)
+        st.write(f"**{col}** → {uniques}")
+
+    st.subheader("⚙️ Choose filling approach for each column")
     cleaned_df = df.copy()
 
-    # -------------------------------
-    # Step 2: Show Raw File
-    # -------------------------------
-    st.subheader("📊 Step 2: Raw Dataset Preview")
-    st.dataframe(cleaned_df.head())
-
-    # -------------------------------
-    # Step 3: Show Info + Null Summary
-    # -------------------------------
-    st.subheader("ℹ️ Step 3: Dataset Information")
-    st.write("**Shape:** ", cleaned_df.shape)
-    st.write("**Columns:** ", cleaned_df.columns.tolist())
-
-    st.write("**Null Values Summary:**")
-    st.write(cleaned_df.isnull().sum())
-
-    st.write("**Statistical Description:**")
-    st.write(cleaned_df.describe(include="all"))
-
-    # -------------------------------
-    # Step 4: Remove Unwanted Columns
-    # -------------------------------
-    st.subheader("🗑️ Step 4: Remove Unwanted Columns")
-    cols_to_remove = st.multiselect(
-        "Select columns you want to remove:",
-        options=cleaned_df.columns.tolist()
-    )
-    if cols_to_remove:
-        cleaned_df.drop(columns=cols_to_remove, inplace=True)
-        st.success(f"Removed columns: {', '.join(cols_to_remove)}")
-        st.dataframe(cleaned_df.head())
-
-    # -------------------------------
-    # Step 5: Handle Nulls & Inappropriate Values (Column-wise)
-    # -------------------------------
-    st.subheader("🩹 Step 5: Handle Missing/Inappropriate Values")
-
-    # Show unique values per column
-    st.write("🔎 Unique values per column (to detect inappropriate values):")
-    for col in cleaned_df.columns:
-        st.write(f"**{col}** → {cleaned_df[col].unique()}")
-
-    st.write("---")
-
-    # For each column with missing values → ask user what to do
-    null_cols = [col for col in cleaned_df.columns if cleaned_df[col].isnull().sum() > 0]
-
-    if null_cols:
-        st.write("⚠️ Columns with missing values found. Please choose how to handle each:")
-
-        for col in null_cols:
-            st.write(f"**Column: {col}** (Missing values: {cleaned_df[col].isnull().sum()})")
-
-            fill_option = st.selectbox(
-                f"How should we handle '{col}'?",
-                [
-                    "Do nothing",
-                    "Fill with Mean (numeric only)",
-                    "Fill with Median (numeric only)",
-                    "Fill with Mode",
-                    "Fill with 0 (numeric only)",
-                    "Fill with 'Unknown' (for text)",
-                    "Drop rows with missing values"
-                ],
-                key=f"fill_{col}"  # unique key for each column
+    for col in df.columns:
+        st.markdown(f"**Column: {col}**")
+        if df[col].isnull().sum() > 0 or any(df[col].astype(str).str.lower().isin(["nan", "none", "null"])):
+            method = st.selectbox(
+                f"Choose method to handle missing/inappropriate values in '{col}'",
+                ["Do Nothing", "Fill with Mean", "Fill with Median", "Fill with Mode", 
+                 "Fill with Zero", "Fill with 'Unknown'", "Drop rows"],
+                key=f"fill_{col}"
             )
 
-            # Apply chosen strategy
-            if fill_option != "Do nothing":
-                if fill_option == "Fill with Mean (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
-                    cleaned_df[col].fillna(cleaned_df[col].mean(), inplace=True)
-
-                elif fill_option == "Fill with Median (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
-                    cleaned_df[col].fillna(cleaned_df[col].median(), inplace=True)
-
-                elif fill_option == "Fill with Mode":
-                    cleaned_df[col].fillna(cleaned_df[col].mode()[0], inplace=True)
-
-                elif fill_option == "Fill with 0 (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
-                    cleaned_df[col].fillna(0, inplace=True)
-
-                elif fill_option == "Fill with 'Unknown' (for text)" and cleaned_df[col].dtype == object:
-                    cleaned_df[col].fillna("Unknown", inplace=True)
-
-                elif fill_option == "Drop rows with missing values":
-                    cleaned_df = cleaned_df[cleaned_df[col].notna()]
-
-                st.success(f"✅ {fill_option} applied to column: {col}")
-    else:
-        st.info("No missing values detected.")
+            if method == "Fill with Mean" and pd.api.types.is_numeric_dtype(df[col]):
+                cleaned_df[col] = df[col].fillna(df[col].mean())
+            elif method == "Fill with Median" and pd.api.types.is_numeric_dtype(df[col]):
+                cleaned_df[col] = df[col].fillna(df[col].median())
+            elif method == "Fill with Mode":
+                cleaned_df[col] = df[col].fillna(df[col].mode()[0])
+            elif method == "Fill with Zero" and pd.api.types.is_numeric_dtype(df[col]):
+                cleaned_df[col] = df[col].fillna(0)
+            elif method == "Fill with 'Unknown'":
+                cleaned_df[col] = df[col].fillna("Unknown")
+            elif method == "Drop rows":
+                cleaned_df = cleaned_df.dropna(subset=[col])
 
     # -------------------------------
-    # Step 6: Show Cleaned Dataset
+    # STEP 6: Show Clean Dataset
     # -------------------------------
-    st.subheader("✅ Step 6: Final Cleaned Dataset")
-    st.dataframe(cleaned_df.head())
+    st.header("✅ Step 6: Cleaned Dataset")
+    st.write(cleaned_df.head())
 
     # Download option
-    buffer = io.BytesIO()
-    cleaned_df.to_csv(buffer, index=False)
-    buffer.seek(0)
     st.download_button(
-        label="⬇️ Download Cleaned File (CSV)",
-        data=buffer,
-        file_name="cleaned_data.csv",
-        mime="text/csv"
+        label="📥 Download Cleaned File (CSV)",
+        data=cleaned_df.to_csv(index=False).encode("utf-8"),
+        file_name="cleaned_dataset.csv",
+        mime="text/csv",
     )
-
-else:
-    st.info("Please upload a CSV or Excel file to begin.")
