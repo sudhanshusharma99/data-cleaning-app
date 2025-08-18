@@ -28,15 +28,20 @@ if uploaded_file:
     # -------------------------------
     # STEP 3: Show Info & Description
     # -------------------------------
+    import io
+    
     st.header("📊 Step 3: File Information")
-    buffer = []
+    
+    buffer = io.StringIO()
     df.info(buf=buffer)
-    info_str = "\n".join(buffer)
+    info_str = buffer.getvalue()
+    
     st.text("ℹ️ Dataset Info:")
     st.text(info_str)
-
+    
     st.write("🧾 Summary Statistics:")
     st.write(df.describe(include="all"))
+
 
     # -------------------------------
     # STEP 4: Remove Columns
@@ -124,3 +129,4 @@ if uploaded_file:
             file_name="ml_ready_dataset.csv",
             mime="text/csv",
         )
+
