@@ -57,41 +57,53 @@ if uploaded_file:
     # STEP 5: Handle Missing/Inappropriate Values
     # -------------------------------
     st.header("🩹 Step 5: Handle Missing/Inappropriate Values")
-
-    st.subheader("🔎 Unique values per column")
-    for col in df.columns:
-        uniques = df[col].unique()
-        if pd.api.types.is_datetime64_any_dtype(df[col]):
-            uniques = df[col].dt.strftime("%Y-%m-%d").unique()
-        else:
-            uniques = uniques.astype(str)
+    
+    st.write("🔎 Unique values per column (to detect inappropriate values):")
+    for col in cleaned_df.columns:
+        uniques = cleaned_df[col].dropna().unique()
+        if pd.api.types.is_datetime64_any_dtype(cleaned_df[col]):
+            uniques = cleaned_df[col].dt.strftime("%Y-%m-%d").unique()
         st.write(f"**{col}** → {uniques}")
-
-    st.subheader("⚙️ Choose filling approach for each column")
-    cleaned_df = df.copy()
-
-    for col in df.columns:
-        st.markdown(f"**Column: {col}**")
-        if df[col].isnull().sum() > 0 or any(df[col].astype(str).str.lower().isin(["nan", "none", "null"])):
-            method = st.selectbox(
-                f"Choose method to handle missing/inappropriate values in '{col}'",
-                ["Do Nothing", "Fill with Mean", "Fill with Median", "Fill with Mode", 
-                 "Fill with Zero", "Fill with 'Unknown'", "Drop rows"],
-                key=f"fill_{col}"
+    
+    # Select columns for missing value handling
+    selected_cols = st.multiselect(
+        "📌 Select columns you want to handle missing/inappropriate values for:",
+        cleaned_df.columns.tolist()
+    )
+    
+    if selected_cols:
+        for col in selected_cols:
+            st.subheader(f"⚙️ Handle values in column: {col}")
+    
+            strategy = st.radio(
+                f"Choose a strategy for `{col}`:",
+                ("Do Nothing", "Remove Rows", "Fill with Mean", "Fill with Median",
+                 "Fill with Mode", "Custom Value")
             )
+    
+            if strategy == "Remove Rows":
+                cleaned_df = cleaned_df[cleaned_df[col].notna()]
+    
+            elif strategy == "Fill with Mean":
+                if pd.api.types.is_numeric_dtype(cleaned_df[col]):
+                    cleaned_df[col].fillna(cleaned_df[col].mean(), inplace=True)
+                else:
+                    st.warning(f"⚠️ Column `{col}` is not numeric. Skipping Mean.")
+    
+            elif strategy == "Fill with Median":
+                if pd.api.types.is_numeric_dtype(cleaned_df[col]):
+                    cleaned_df[col].fillna(cleaned_df[col].median(), inplace=True)
+                else:
+                    st.warning(f"⚠️ Column `{col}` is not numeric. Skipping Median.")
+    
+            elif strategy == "Fill with Mode":
+                cleaned_df[col].fillna(cleaned_df[col].mode()[0], inplace=True)
+    
+            elif strategy == "Custom Value":
+                custom_value = st.text_input(f"Enter custom value for `{col}`:")
+                if custom_value:
+                    cleaned_df[col].fillna(custom_value, inplace=True)
 
-            if method == "Fill with Mean" and pd.api.types.is_numeric_dtype(df[col]):
-                cleaned_df[col] = df[col].fillna(df[col].mean())
-            elif method == "Fill with Median" and pd.api.types.is_numeric_dtype(df[col]):
-                cleaned_df[col] = df[col].fillna(df[col].median())
-            elif method == "Fill with Mode":
-                cleaned_df[col] = df[col].fillna(df[col].mode()[0])
-            elif method == "Fill with Zero" and pd.api.types.is_numeric_dtype(df[col]):
-                cleaned_df[col] = df[col].fillna(0)
-            elif method == "Fill with 'Unknown'":
-                cleaned_df[col] = df[col].fillna("Unknown")
-            elif method == "Drop rows":
-                cleaned_df = cleaned_df.dropna(subset=[col])
 
     # -------------------------------
     # STEP 6: Show Clean Dataset
@@ -129,4 +141,5 @@ if uploaded_file:
             file_name="ml_ready_dataset.csv",
             mime="text/csv",
         )
+
 
