@@ -55,57 +55,63 @@ if uploaded_file is not None:
         st.dataframe(cleaned_df.head())
 
     # -------------------------------
-    # Step 5: Handle Nulls & Inappropriate Values
+    # Step 5: Handle Nulls & Inappropriate Values (Column-wise)
     # -------------------------------
-    st.subheader("🩹 Step 5: Handle Nulls & Inappropriate Values")
+    st.subheader("🩹 Step 5: Handle Missing/Inappropriate Values")
 
+    # Show unique values per column
     st.write("🔎 Unique values per column (to detect inappropriate values):")
     for col in cleaned_df.columns:
         st.write(f"**{col}** → {cleaned_df[col].unique()}")
 
-    col_to_fix = st.selectbox("Select column to clean:", options=cleaned_df.columns.tolist())
+    st.write("---")
 
-    if col_to_fix:
-        st.write(f"Selected column: **{col_to_fix}**")
+    # For each column with missing values → ask user what to do
+    null_cols = [col for col in cleaned_df.columns if cleaned_df[col].isnull().sum() > 0]
 
-        # Show unique values of selected column
-        st.write("Unique values in this column:")
-        st.write(cleaned_df[col_to_fix].unique())
+    if null_cols:
+        st.write("⚠️ Columns with missing values found. Please choose how to handle each:")
 
-        # Choose handling method
-        fill_option = st.selectbox(
-            "Choose how to handle null/inappropriate values:",
-            [
-                "Do nothing",
-                "Fill with Mean (numeric only)",
-                "Fill with Median (numeric only)",
-                "Fill with Mode",
-                "Fill with 0 (numeric only)",
-                "Fill with 'Unknown' (for text)",
-                "Drop rows with null/inappropriate values"
-            ]
-        )
+        for col in null_cols:
+            st.write(f"**Column: {col}** (Missing values: {cleaned_df[col].isnull().sum()})")
 
-        if fill_option != "Do nothing":
-            if fill_option == "Fill with Mean (numeric only)" and cleaned_df[col_to_fix].dtype in [np.float64, np.int64]:
-                cleaned_df[col_to_fix].fillna(cleaned_df[col_to_fix].mean(), inplace=True)
+            fill_option = st.selectbox(
+                f"How should we handle '{col}'?",
+                [
+                    "Do nothing",
+                    "Fill with Mean (numeric only)",
+                    "Fill with Median (numeric only)",
+                    "Fill with Mode",
+                    "Fill with 0 (numeric only)",
+                    "Fill with 'Unknown' (for text)",
+                    "Drop rows with missing values"
+                ],
+                key=f"fill_{col}"  # unique key for each column
+            )
 
-            elif fill_option == "Fill with Median (numeric only)" and cleaned_df[col_to_fix].dtype in [np.float64, np.int64]:
-                cleaned_df[col_to_fix].fillna(cleaned_df[col_to_fix].median(), inplace=True)
+            # Apply chosen strategy
+            if fill_option != "Do nothing":
+                if fill_option == "Fill with Mean (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
+                    cleaned_df[col].fillna(cleaned_df[col].mean(), inplace=True)
 
-            elif fill_option == "Fill with Mode":
-                cleaned_df[col_to_fix].fillna(cleaned_df[col_to_fix].mode()[0], inplace=True)
+                elif fill_option == "Fill with Median (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
+                    cleaned_df[col].fillna(cleaned_df[col].median(), inplace=True)
 
-            elif fill_option == "Fill with 0 (numeric only)" and cleaned_df[col_to_fix].dtype in [np.float64, np.int64]:
-                cleaned_df[col_to_fix].fillna(0, inplace=True)
+                elif fill_option == "Fill with Mode":
+                    cleaned_df[col].fillna(cleaned_df[col].mode()[0], inplace=True)
 
-            elif fill_option == "Fill with 'Unknown' (for text)" and cleaned_df[col_to_fix].dtype == object:
-                cleaned_df[col_to_fix].fillna("Unknown", inplace=True)
+                elif fill_option == "Fill with 0 (numeric only)" and cleaned_df[col].dtype in [np.float64, np.int64]:
+                    cleaned_df[col].fillna(0, inplace=True)
 
-            elif fill_option == "Drop rows with null/inappropriate values":
-                cleaned_df = cleaned_df[cleaned_df[col_to_fix].notna()]
+                elif fill_option == "Fill with 'Unknown' (for text)" and cleaned_df[col].dtype == object:
+                    cleaned_df[col].fillna("Unknown", inplace=True)
 
-            st.success(f"✅ {fill_option} applied to column: {col_to_fix}")
+                elif fill_option == "Drop rows with missing values":
+                    cleaned_df = cleaned_df[cleaned_df[col].notna()]
+
+                st.success(f"✅ {fill_option} applied to column: {col}")
+    else:
+        st.info("No missing values detected.")
 
     # -------------------------------
     # Step 6: Show Cleaned Dataset
